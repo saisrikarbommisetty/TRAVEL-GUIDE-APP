@@ -162,5 +162,5 @@ This project is licensed under the **MIT License** - see the LICENSE file for de
 ---
 
 <div align="center">
-  <sub>Built with ❤️ for travelers and explorers around the globe.</sub>
+  <sub>Built By Sai Srikar for travelers and explorers around the globe.</sub>
 </div>
