@@ -93,13 +93,11 @@ def generate_description(place, answer_type, language):
     client = get_gemini_client()
     prompt = PROMPTS.get(answer_type, PROMPTS["Summary"]).format(place=place, language=language)
     models_to_try = [
-        "gemini-3.7-flash",
-        "gemini-3.5-flash",
-        "gemini-flash-latest",
-        "gemini-3.8-flash",
-        "gemini-2.5-flash-lite",
         "gemini-2.5-flash",
-        "gemini-pro-latest"
+        "gemini-2.5-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-3.7-flash",
+        "gemini-3.8-flash"
     ]
     
     last_error = None
@@ -113,10 +111,17 @@ def generate_description(place, answer_type, language):
                 return response.text
         except Exception as e:
             last_error = e
-            print(f"Warning: Model {model} failed ({e}). Trying next model...")
+            err_str = str(e)
+            print(f"Model {model} error: {err_str[:120]}")
+            if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
+                print(f"Model {model} quota exhausted.")
             continue
                 
-    raise Exception(f"Failed to generate description across all models: {last_error}")
+    if "RESOURCE_EXHAUSTED" in str(last_error) or "429" in str(last_error):
+        raise Exception("Google Gemini Free Daily Quota Exceeded for this API key. Please create a fresh API key at https://aistudio.google.com/ or try again when quota resets.")
+
+    raise Exception(f"Failed to generate description: {last_error}")
+
 
     
 @app.route("/generate-audio-guide", methods=["POST"])
