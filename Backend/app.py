@@ -14,11 +14,11 @@ FRONTEND_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", 
 app = Flask(__name__, static_folder=FRONTEND_FOLDER)
 CORS(app)
 
-MURF_API_KEY = os.environ.get("MURF_API_KEY", "")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-
-client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
-
+def get_gemini_client():
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key:
+        raise ValueError("GEMINI_API_KEY is not set. Please add GEMINI_API_KEY to your Render Environment Variables.")
+    return genai.Client(api_key=key)
 
 PROMPTS = {
     "Summary": """
@@ -55,10 +55,16 @@ Respond ONLY in {language}.
 """
 }
 
+
 def generate_speech(text, voice_id, locale):
+    murf_key = os.environ.get("MURF_API_KEY", "").strip()
+    if not murf_key:
+        print("Warning: MURF_API_KEY is not set. Skipping audio synthesis.")
+        return None
+
     url = "https://global.api.murf.ai/v1/speech/stream"
     headers = {
-        "api-key": MURF_API_KEY,
+        "api-key": murf_key,
         "Content-Type": "application/json"
     }
     data = {
@@ -71,35 +77,47 @@ def generate_speech(text, voice_id, locale):
         "channelType": "MONO"
     }
 
-    response = requests.post(url, headers=headers, json=data)
-
-    if response.status_code == 200:
-        return response.content
-    else:
-        print(f"Murf API Error: {response.status_code} - {response.text}")
+    try:
+        response = requests.post(url, headers=headers, json=data, timeout=60)
+        if response.status_code == 200:
+            return response.content
+        else:
+            print(f"Murf API Error: {response.status_code} - {response.text}")
+            return None
+    except Exception as ex:
+        print(f"Murf request exception: {ex}")
         return None
 
 
 def generate_description(place, answer_type, language):
+    client = get_gemini_client()
     prompt = PROMPTS.get(answer_type, PROMPTS["Summary"]).format(place=place, language=language)
-    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+    models_to_try = [
+        "gemini-3.7-flash",
+        "gemini-3.5-flash",
+        "gemini-flash-latest",
+        "gemini-3.8-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-pro-latest"
+    ]
     
     last_error = None
     for model in models_to_try:
-        for attempt in range(2):
-            try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents=prompt
-                )
-                if response and response.text:
-                    return response.text
-            except Exception as e:
-                last_error = e
-                print(f"Warning: {model} attempt {attempt+1} failed ({e}). Retrying...")
-                time.sleep(1)
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt
+            )
+            if response and response.text:
+                return response.text
+        except Exception as e:
+            last_error = e
+            print(f"Warning: Model {model} failed ({e}). Trying next model...")
+            continue
                 
-    raise Exception(f"Failed to generate description across available models: {last_error}")
+    raise Exception(f"Failed to generate description across all models: {last_error}")
+
     
 @app.route("/generate-audio-guide", methods=["POST"])
 def generate_audio_guide():
