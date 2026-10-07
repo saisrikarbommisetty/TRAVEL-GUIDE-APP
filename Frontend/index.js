@@ -148,7 +148,20 @@ generateButton.addEventListener('click', async () => {
       })
     });
 
-    if (!response.ok) throw new Error('Generation failed');
+    if (!response.ok) {
+      let errorMessage = `Server error (${response.status})`;
+      try {
+        const errorData = await response.json();
+        if (errorData && errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch (_) {
+        if (response.status === 502 || response.status === 504) {
+          errorMessage = 'Server is waking up (cold start). Please try again in 10-20 seconds.';
+        }
+      }
+      throw new Error(errorMessage);
+    }
 
     const data = await response.json();
 
@@ -167,8 +180,8 @@ generateButton.addEventListener('click', async () => {
     }
 
   } catch (err) {
-    console.error(err);
-    alert('Generation failed. Please check your connection.');
+    console.error('Generation Error:', err);
+    alert(err.message || 'Generation failed. If the server was sleeping, please wait a moment and try again.');
     generateButton.textContent = 'Generate Audio Guide';
     generateButton.disabled = false;
   }
