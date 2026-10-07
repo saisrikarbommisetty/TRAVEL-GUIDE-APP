@@ -93,9 +93,8 @@ def generate_description(place, answer_type, language):
     client = get_gemini_client()
     prompt = PROMPTS.get(answer_type, PROMPTS["Summary"]).format(place=place, language=language)
     models_to_try = [
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
         "gemini-3.5-flash",
+        "gemma-4-26b-a4b-it",
         "gemini-3.7-flash",
         "gemini-3.8-flash"
     ]
